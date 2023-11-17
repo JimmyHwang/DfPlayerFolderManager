@@ -1,0 +1,29 @@
+ 
+Usage:
+  python3 DfPlayerFolderManager.py -s Source -t Target -c -m 0
+    -m,--mode     Specify output folder mode
+      Mode 0: Single Mode, All songs in a folder
+      Mode 1: Multiple Mode, Copy each source folder in target folder.
+      Mode 2: Series Mode, All songs of Series in a folder.
+    -s,--source   Specify source folder
+    -t,--target   Specify target folder
+    -m,--mode     Specify output folder mode
+  
+Folder Structure Examples:
+  [Source]
+    [1997_AAAA]
+    [1998_BBBB]
+      [1998_CD1]
+      [1998_CD2]
+  [Target] with mode 0 (Single Mode)
+    10/001#AAAA.mp3
+       002#BBBB_CD1.mp3
+       003#BBBB_CD2.mp3
+  [Target] wirh mode 1 (Multiple Mode)
+    10/001#AAAA.mp3
+    11/001#BBBB_CD1.mp3
+    12/001#BBBB_CD2.mp3
+  [Target] wirh mode 2 (Series Mode)
+    10/001#AAAA.mp3
+    11/001#CD1.mp3
+       002#CD2.mp3
