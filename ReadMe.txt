@@ -2,10 +2,6 @@
 
 DfPlayerFolderManager is a tool for convert song folder structure for MP3-TF-16P
 
-- Type some Markdown on the left
-- See HTML in the right
-- ✨Magic ✨
-
 ## Features
 
 - Support specify source/target folder
