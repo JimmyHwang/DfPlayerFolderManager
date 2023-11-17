@@ -1,15 +1,37 @@
- 
-Usage:
-  python3 DfPlayerFolderManager.py -s Source -t Target -c -m 0
-    -m,--mode     Specify output folder mode
-      Mode 0: Single Mode, All songs in a folder
-      Mode 1: Multiple Mode, Copy each source folder in target folder.
-      Mode 2: Series Mode, All songs of Series in a folder.
-    -s,--source   Specify source folder
-    -t,--target   Specify target folder
-    -m,--mode     Specify output folder mode
-  
-Folder Structure Examples:
+# DfPlayerFolderManager
+
+DfPlayerFolderManager is a tool for convert song folder structure for MP3-TF-16P
+
+- Type some Markdown on the left
+- See HTML in the right
+- ✨Magic ✨
+
+## Features
+
+- Support specify source/target folder
+- Support 3 mode folder strucutre
+- Build folder index file after build folder completed
+- Supprot apply specify to index of folder
+
+## Installation
+
+DfPlayerFolderManager requires python 2.x or 3.x
+
+## Usage
+```
+python3 DfPlayerFolderManager.py -s Source -t Target -c -m 0
+```
+  * -m,--mode     Specify output folder mode
+    * Mode 0: Single Mode, All songs in a folder
+    * Mode 1: Multiple Mode, Copy each source folder in target folder.
+    * Mode 2: Series Mode, All songs of Series in a folder.
+  * -s,--source xxx     Specify source folder
+  * -t,--target xxx     Specify target folder
+  * -m,--mode           Specify output folder mode
+  * --tag xxxx          Specify tag of folder in index file
+
+## Examples
+```
   [Source]
     [1997_AAAA]
     [1998_BBBB]
@@ -27,3 +49,4 @@ Folder Structure Examples:
     10/001#AAAA.mp3
     11/001#CD1.mp3
        002#CD2.mp3
+```
