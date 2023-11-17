@@ -14,7 +14,9 @@ import shutil
 MODE_SINGLE = 0
 MODE_MULTIPLE = 1
 MODE_SERIES = 2
-        
+INDEX_FILE = "index.json"
+CATALOG_FILE = "catalog.json"
+
 VerboseFlag = False
 SongId = 1
 SongList = []
@@ -25,6 +27,8 @@ TargetFolder = ""
 SimFlag = False
 FolderTag = ""
 CleanFlag = False
+IndexFlag = False
+CatalogFlag = False
 
 #------------------------------------------------------------------------------
 # Common Functions
@@ -88,7 +92,7 @@ def MoveFile(src, dest):
   os.rename(src, dest)
 
 def json_encode(data):
-  return json.dumps(data, sort_keys=True, indent=2)
+  return json.dumps(data, sort_keys=True, indent=2, ensure_ascii=False)
   
 def json_decode(data):
   return json.loads(data)
@@ -144,17 +148,6 @@ def mkdirr(folder):
   if os.path.exists(folder) == False:
     os.mkdir(folder);
 
-#------------------------------------------------------------------------------
-# Class
-#------------------------------------------------------------------------------
-class TARGET_CLASS:
-  def __init__(self, target_folder):
-    self.Folder = target_folder
-    
-  # def GetIndexData(self):
-   
-  # def SetIndexData(self):
-        
 #------------------------------------------------------------------------------
 # Find functions
 #------------------------------------------------------------------------------
@@ -252,14 +245,13 @@ def ConvertNest(args, rpath):
       update_index = True
   
   if update_index:
-    name = rpath.replace("/", "_")
-    name = name.replace(" ", ".")    
-    index_file = os.path.join(output_folder, "index.json")
-    index = {}
-    index["Folder"] = rpath
-    index["Files"] = args["SongList"]
-    index["Tag"] = folder_tag
-    WriteJsonFile(index_file, index)
+    if IndexFlag:
+      index_file = os.path.join(output_folder, INDEX_FILE)
+      index = {}
+      index["Folder"] = rpath
+      index["Files"] = args["SongList"]
+      index["Tag"] = folder_tag
+      WriteJsonFile(index_file, index)
     args["SongList"] = []
     args["SongId"] = 1
 
@@ -304,18 +296,51 @@ def ConvertFolder(src, dst):
   args["SongList"] = []
   ConvertNest(args, "")
 
+def BuildIndexFile(song_folder):
+  global FolderTag
+  global IndexFlag
+  create_flag = False
+  index_file = os.path.join(song_folder, INDEX_FILE)
+  if os.path.exists(index_file) == False:
+    create_flag = True
+  
+  if create_flag:
+    print("BuildIndexFile [%s]" % (index_file))
+    song_list = []
+    for file in sorted(os.listdir(song_folder)):
+      full = os.path.join(song_folder, file)
+      if (os.path.isdir(full)):
+        pass
+      else:
+        ext = GetFileExtension(file)
+        if ext.lower() == ".mp3":
+          song_list.append(file)
+    if IndexFlag == True and len(song_list) > 0:
+      obj = {}
+      obj["Files"] = song_list
+      obj["Folder"] = ""
+      obj["Tag"] = [FolderTag]
+      WriteJsonFile(index_file, obj)
+      
 #
 # Build index file if not exists
 #
-def BuildFolderIndex(target_folder):
-  global CatalogData
-  
-  # for file in sorted(os.listdir(target_folder)):
-    # full = os.path.join(dir, file)
-    # if (os.path.isdir(full)):
-      # json_fn = os.path.join(full,
-    # else:
-  pass
+def BuildCatalogFile(target_folder):
+  global CatalogFlag
+  catalog_data = {}
+  for file in sorted(os.listdir(target_folder)):
+    full = os.path.join(target_folder, file)
+    if (os.path.isdir(full)):
+      BuildIndexFile(full)
+    else:
+      pass
+    index_file = os.path.join(full, INDEX_FILE);
+    if os.path.exists(index_file):
+      index_obj = ReadJsonFile(index_file)
+      catalog_data[file] = index_obj
+  if CatalogFlag:
+    catalog_file = os.path.join(target_folder, CATALOG_FILE)
+    WriteJsonFile(catalog_file, catalog_data);
 
 #------------------------------------------------------------------------------
 # Main 
@@ -331,6 +356,7 @@ def Usage():
     print('   -t,--target   Specify target folder')
     print('   --tag xxx     Specify folder tag')
     print('   --catalog     Build catalog file')
+    print('   --index       Build index file')    
     print('   -v            Verbose')
 
 def main(argv):
@@ -343,6 +369,8 @@ def main(argv):
   global FolderTag
   global CatalogFlag
   global CleanFlag
+  global IndexFlag
+  global CatalogFlag
   
   VerboseFlag = False
   TestFlag = False
@@ -354,7 +382,7 @@ def main(argv):
   TargetFolder = False
   
   try:
-    opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "clean", "sim"])
+    opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "index", "clean", "sim"])
   except getopt.GetoptError:
     Usage()
     sys.exit(2)
@@ -378,6 +406,8 @@ def main(argv):
       FolderTag = arg
     elif opt in ("--catalog"):        # Catalog
       CatalogFlag = True
+    elif opt in ("--index"):          # Index
+      IndexFlag = True
     elif opt in ("--sim"):            # Simulation
       SimFlag = True
     elif opt in ("-t"):               # Test Code
@@ -392,6 +422,8 @@ def main(argv):
   print("Folder Tag     = %s" % (FolderTag))
   print("Clean Flag     = %d" % (CleanFlag))
   print("Verbose Flag   = %d" % (VerboseFlag))
+  print("Catalog Flag   = %d" % (CatalogFlag))
+  print("Index Flag     = %d" % (IndexFlag))
 
   if SourceFolder == False or TargetFolder == False:
     print("Error: -s xxx and -t xxx is rquired")
@@ -404,14 +436,15 @@ def main(argv):
     if CleanFlag:
       EmptyFolder(TargetFolder)
     ConvertFolder(SourceFolder, TargetFolder)
-    pass
+        
+  if CatalogFlag:
+    BuildCatalogFile(TargetFolder)
+
   if TestFlag != False:
     # db_list = GetDatabaseList()
     # print(db_list)
     pass
-  else:
-    pass    
-        
+    
 if __name__ == "__main__":
    main(sys.argv[1:])
    
