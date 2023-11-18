@@ -257,10 +257,11 @@ def ConvertNest(args, rpath):
     # Write folder information file
     #
     if IndexFlag == True and origin_folder != False:
-      index_file = os.path.join(output_folder, INDEX_FILE)
-      index_cfg = ReadJsonFile(index_file)
+      source_index_fn = os.path.join(base_dir, INDEX_FILE)      
+      target_index_fn = os.path.join(output_folder, INDEX_FILE)
+      index_cfg = ReadJsonFile(source_index_fn)
       index_cfg["Folder"] = origin_folder
-      WriteJsonFile(index_file, index_cfg)
+      WriteJsonFile(target_index_fn, index_cfg)
     
     #
     # Increment FolderId
@@ -305,12 +306,11 @@ def BuildIndexFile(song_folder):
   
   index_file = os.path.join(song_folder, INDEX_FILE)
   if os.path.exists(index_file):
-    index_cfg = ReadJsonFile(index_file)
-    
+    index_cfg = ReadJsonFile(index_file)    
   if "Folder" not in index_cfg:
     index_cfg["Folder"] = ""
   if "Tags" not in index_cfg:
-    index_cfg["Tags"] = [FolderTag]      
+    index_cfg["Tags"] = [FolderTag]
   
   print("BuildIndexFile [%s]" % (index_file))    
   for file in sorted(os.listdir(song_folder)):
