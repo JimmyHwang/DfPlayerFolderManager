@@ -18,8 +18,6 @@ INDEX_FILE = "index.json"
 CATALOG_FILE = "catalog.json"
 
 VerboseFlag = False
-SongId = 1
-SongList = []
 ConvertMode = 0;
 FolderBase = 0
 SourceFolder = ""
@@ -152,6 +150,7 @@ def mkdirr(folder):
 # Find functions
 #------------------------------------------------------------------------------
 def EmptyFolderNest(base, rpath):
+  global VerboseFlag
   dir = os.path.join (base, rpath)
   print("----------------------------------------")
   print(" Empty Folder [%s]" % (dir))
@@ -161,15 +160,27 @@ def EmptyFolderNest(base, rpath):
     if (os.path.isdir(full)):
       EmptyFolderNest(base, os.path.join(rpath, file))
       os.rmdir(full)
-      print("Remove folder [%s]" % full);
+      if VerboseFlag:
+        print("Remove folder [%s]" % full);
     else:
-      print("Remove file [%s]" % full);
       os.remove(full) 
+      if VerboseFlag:
+        print("Remove file [%s]" % full);
         
 def EmptyFolder(folder):
   if os.path.isdir(folder):
     EmptyFolderNest(folder, "");
 
+def IsSystemFolder(folder):
+  st = False
+  index_file = os.path.join(folder, INDEX_FILE)
+  if os.path.exists(index_file):
+    index_cfg = ReadJsonFile(index_file)
+    if "Folder" in index_cfg:
+      if index_cfg["Folder"] == "System":
+        st = True
+  return st
+  
 def ConvertNest(args, rpath):
   global VerboseFlag
 
@@ -181,95 +192,86 @@ def ConvertNest(args, rpath):
   result = False  
   mkdirr(target_folder)
   
-  if mode == MODE_SINGLE:
-    output_folder = target_folder
-  elif mode == MODE_MULTIPLE:
-    args["SongId"] = 1
-    args["SongList"] = []
-    output_folder = os.path.join(target_folder, str(args["FolderId"]));    
-    print("output_folder="+output_folder)
-    if os.path.isdir(output_folder) == False:
-      os.mkdir(output_folder)
-  elif mode == MODE_SERIES:
-    if level == 1:
-      args["SongId"] = 1
-      args["SongList"] = []
+  base_dir = os.path.join (base, rpath)
+  if level == 1 and IsSystemFolder(base_dir):
+    print("----------------------------------------")
+    print(" System Folder [%s]" % (base_dir))
+    print("----------------------------------------")
+    dst_folder = os.path.join(target_folder, rpath)
+    shutil.copytree(base_dir, dst_folder, dirs_exist_ok=True)
+  else:  
+    print("----------------------------------------")
+    print(" Folder [%s]" % (base_dir))
+    print("----------------------------------------")
+    
     output_folder = os.path.join(target_folder, str(args["FolderId"]));
-  else:
-    print("Error: Unsupport Mode [%d]" % (mode))
-    pass
-  mkdirr(output_folder)
-  
-  dir = os.path.join (base, rpath)  
-  print("----------------------------------------")
-  print(" Folder [%s]" % (dir))
-  print("----------------------------------------")
-  for file in sorted(os.listdir(dir)):
-    full = os.path.join(dir, file)
-    if (os.path.isdir(full)):
-      if mode == MODE_MULTIPLE or (mode == MODE_SERIES and level == 0):
-        backup_song_id = args["SongId"]
-        args["SongId"] = 1
-      args["Level"] = args["Level"] + 1
-      ConvertNest(args, os.path.join(rpath, file))
-      args["Level"] = args["Level"] - 1
-      if mode == MODE_MULTIPLE:
-        args["SongId"] = backup_song_id      
-    else:
-      ext = GetFileExtension(file)
-      if ext.lower() == ".mp3":
-        if mode == MODE_SINGLE or mode == MODE_SERIES:
-          new_full = "%s#%s,%s" % (str(args["SongId"]).zfill(3), rpath, file)
-        elif mode == MODE_MULTIPLE:
-          new_full = "%s#%s" % (str(args["SongId"]).zfill(3), file)          
-        new_full = new_full.replace("/", "_")
-        args["SongList"].append(new_full)
-        args["SongId"] = args["SongId"] + 1
-        new_full = os.path.join(output_folder, new_full)
-        if VerboseFlag:
-          print(full)
-          print(new_full)
-        if SimFlag == False:
-          shutil.copyfile(full, new_full)
-
-  #
-  # Write folder information file
-  #
-  update_index = False
-  if len(args["SongList"]) > 0:
-    if mode == MODE_SINGLE and level == 0:
-      update_index = True
+    origin_folder = False
+    if mode == MODE_SINGLE:
+      if args["SongId"] == 1:
+        origin_folder = "@ALL@"
     elif mode == MODE_MULTIPLE:
-      update_index = True      
-    elif mode == MODE_SERIES and level == 1:
-      update_index = True
-  
-  if update_index:
-    if IndexFlag:
-      index_file = os.path.join(output_folder, INDEX_FILE)
-      index = {}
-      index["Folder"] = rpath
-      index["Files"] = args["SongList"]
-      index["Tag"] = folder_tag
-      WriteJsonFile(index_file, index)
-    args["SongList"] = []
-    args["SongId"] = 1
+      args["SongId"] = 1
+      origin_folder = rpath
+      print("output_folder="+output_folder)
+      if os.path.isdir(output_folder) == False:
+        os.mkdir(output_folder)
+    elif mode == MODE_SERIES:
+      if level == 1:
+        args["SongId"] = 1
+        origin_folder = rpath
+    else:
+      print("Error: Unsupport Mode [%d]" % (mode))
+      pass
+    mkdirr(output_folder)
+    
+    for file in sorted(os.listdir(base_dir)):
+      full = os.path.join(base_dir, file)
+      if (os.path.isdir(full)):
+        backup_song_id = False
+        if mode == MODE_MULTIPLE or (mode == MODE_SERIES and level == 0):
+          backup_song_id = args["SongId"]
+          args["SongId"] = 1
+        args["Level"] = args["Level"] + 1
+        ConvertNest(args, os.path.join(rpath, file))
+        args["Level"] = args["Level"] - 1
+        if backup_song_id != False:
+          args["SongId"] = backup_song_id
+          backup_song_id = False
+      else:
+        ext = GetFileExtension(file)
+        if ext.lower() == ".mp3":
+          if mode == MODE_SINGLE or mode == MODE_SERIES:
+            new_full = "%s#%s,%s" % (str(args["SongId"]).zfill(3), rpath, file)
+          elif mode == MODE_MULTIPLE:
+            new_full = "%s#%s" % (str(args["SongId"]).zfill(3), file)          
+          new_full = new_full.replace("/", "_")
+          args["SongId"] = args["SongId"] + 1
+          new_full = os.path.join(output_folder, new_full)
+          if VerboseFlag:
+            print(full)
+            print(new_full)
+          if SimFlag == False:
+            shutil.copyfile(full, new_full)
 
-  #
-  # Increment FolderId
-  #
-  if mode == MODE_MULTIPLE:
-    args["FolderId"] = args["FolderId"] + 1
-  elif mode == MODE_SERIES and level == 1:
-    args["FolderId"] = args["FolderId"] + 1
+    #
+    # Write folder information file
+    #
+    if IndexFlag == True and origin_folder != False:
+      index_file = os.path.join(output_folder, INDEX_FILE)
+      index_cfg = ReadJsonFile(index_file)
+      index_cfg["Folder"] = origin_folder
+      WriteJsonFile(index_file, index_cfg)
+    
+    #
+    # Increment FolderId
+    #
+    if mode == MODE_MULTIPLE:
+      args["FolderId"] = args["FolderId"] + 1
+    elif mode == MODE_SERIES and level == 1:
+      args["FolderId"] = args["FolderId"] + 1
     
   return result
 
-def WriteLineArrayToFile(lines, fn):
-  with open(fn, 'w') as f:
-    for line in lines:
-      f.write("%s\n" % line)
-        
 def ConvertFolder(src, dst):
   global TargetFolder
   global CatalogData
@@ -293,34 +295,36 @@ def ConvertFolder(src, dst):
   args["FolderId"] = FolderBase
   args["FolderTag"] = FolderTag
   args["SongId"] = 1
-  args["SongList"] = []
   ConvertNest(args, "")
 
 def BuildIndexFile(song_folder):
   global FolderTag
   global IndexFlag
-  create_flag = False
-  index_file = os.path.join(song_folder, INDEX_FILE)
-  if os.path.exists(index_file) == False:
-    create_flag = True
+  index_cfg = {}
+  song_list = []
   
-  if create_flag:
-    print("BuildIndexFile [%s]" % (index_file))
-    song_list = []
-    for file in sorted(os.listdir(song_folder)):
-      full = os.path.join(song_folder, file)
-      if (os.path.isdir(full)):
-        pass
-      else:
-        ext = GetFileExtension(file)
-        if ext.lower() == ".mp3":
-          song_list.append(file)
-    if IndexFlag == True and len(song_list) > 0:
-      obj = {}
-      obj["Files"] = song_list
-      obj["Folder"] = ""
-      obj["Tag"] = [FolderTag]
-      WriteJsonFile(index_file, obj)
+  index_file = os.path.join(song_folder, INDEX_FILE)
+  if os.path.exists(index_file):
+    index_cfg = ReadJsonFile(index_file)
+    
+  if "Folder" not in index_cfg:
+    index_cfg["Folder"] = ""
+  if "Tags" not in index_cfg:
+    index_cfg["Tags"] = [FolderTag]      
+  
+  print("BuildIndexFile [%s]" % (index_file))    
+  for file in sorted(os.listdir(song_folder)):
+    full = os.path.join(song_folder, file)
+    if (os.path.isdir(full)):
+      pass
+    else:
+      ext = GetFileExtension(file)
+      if ext.lower() == ".mp3":
+        song_list.append(file)
+
+  if IndexFlag == True and len(song_list) > 0:
+    index_cfg["Files"] = song_list
+    WriteJsonFile(index_file, index_cfg)
       
 #
 # Build index file if not exists
