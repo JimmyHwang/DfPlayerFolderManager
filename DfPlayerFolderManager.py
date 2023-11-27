@@ -27,6 +27,8 @@ FolderTag = ""
 CleanFlag = False
 IndexFlag = False
 CatalogFlag = False
+DataVersion = False
+VersionFolder = 99
 
 #------------------------------------------------------------------------------
 # Common Functions
@@ -146,6 +148,13 @@ def mkdirr(folder):
   if os.path.exists(folder) == False:
     os.mkdir(folder);
 
+def StringToInt(str):
+  if "0x" in str:
+    result = int(str, 16)
+  else:
+    result = int(str)
+  return result
+
 #------------------------------------------------------------------------------
 # Find functions
 #------------------------------------------------------------------------------
@@ -181,6 +190,18 @@ def IsSystemFolder(folder):
         st = True
   return st
   
+def GetMp3FileCount(base_dir):
+  count = 0
+  for file in sorted(os.listdir(base_dir)):
+    full = os.path.join(base_dir, file)
+    if (os.path.isdir(full)):
+      pass
+    else:
+      ext = GetFileExtension(file)
+      if ext.lower() == ".mp3":
+        count = count + 1
+  return count
+
 def ConvertNest(args, rpath):
   global VerboseFlag
 
@@ -218,7 +239,18 @@ def ConvertNest(args, rpath):
     elif mode == MODE_SERIES:
       if level == 1:
         args["SongId"] = 1
+        args["SongCount"] = 0
+        args["OriginFolder"] = rpath
         origin_folder = rpath
+      if level >= 1:
+        file_count = GetMp3FileCount(base_dir)
+        print("SongsCount=%d, file_count=%d" % (args["SongCount"], file_count))
+        if args["SongCount"] + file_count > 255:
+          args["FolderId"] = args["FolderId"] + 1
+          args["SongId"] = 1
+          args["SongCount"] = 0
+          origin_folder = args["OriginFolder"]
+          output_folder = os.path.join(target_folder, str(args["FolderId"]));          
     else:
       print("Error: Unsupport Mode [%d]" % (mode))
       pass
@@ -246,7 +278,15 @@ def ConvertNest(args, rpath):
             new_full = "%s#%s" % (str(args["SongId"]).zfill(3), file)          
           new_full = new_full.replace("/", "_")
           args["SongId"] = args["SongId"] + 1
+          args["SongCount"] = args["SongCount"] + 1
           new_full = os.path.join(output_folder, new_full)
+          if VerboseFlag:
+            print(full)
+            print(new_full)
+          if SimFlag == False:
+            shutil.copyfile(full, new_full)
+        elif level == 0:
+          new_full = os.path.join(target_folder, file)          
           if VerboseFlag:
             print(full)
             print(new_full)
@@ -331,6 +371,7 @@ def BuildIndexFile(song_folder):
 #
 def BuildCatalogFile(target_folder):
   global CatalogFlag
+  global DataVersion
   catalog_data = {}
   for file in sorted(os.listdir(target_folder)):
     full = os.path.join(target_folder, file)
@@ -343,9 +384,55 @@ def BuildCatalogFile(target_folder):
       index_obj = ReadJsonFile(index_file)
       catalog_data[file] = index_obj
   if CatalogFlag:
-    catalog_file = os.path.join(target_folder, CATALOG_FILE)
+    fn = CATALOG_FILE
+    if DataVersion != False:
+      fn = "%08X.json" % (DataVersion)
+    catalog_file = os.path.join(target_folder, fn)
     WriteJsonFile(catalog_file, catalog_data);
 
+#------------------------------------------------------------------------------
+# Version File Functions
+#------------------------------------------------------------------------------
+def GetSampleFile():
+  global SourceFolder
+  result = False
+  dir = SourceFolder
+  for file in sorted(os.listdir(dir)):
+    folder2 = os.path.join (dir, file)
+    if os.path.isdir(folder2):             # Find first folder
+      for file2 in sorted(os.listdir(folder2)):
+        full2 = os.path.join (folder2, file2)
+        if os.path.isfile(full2):
+          result = full2
+          break
+    if result != False:
+      break
+  return result
+  
+def BuildDataVersion(ver_folder, id):
+  global SourceFolder
+  global TargetFolder
+  sfn = GetSampleFile()
+  for i in range(0, 31):
+    tid = i+1
+    tfn = os.path.join(TargetFolder, "%02d/%03d.mp3" % (ver_folder, tid))
+    mask = 1 << i
+    if id & mask:
+      folder = os.path.dirname(tfn)
+      mkdirr(folder)
+      shutil.copyfile(sfn, tfn)
+
+def GetDataVersion(ver_folder):
+  global TargetFolder
+  id = 0
+  for i in range(0, 31):
+    tid = i+1
+    tfn = os.path.join(TargetFolder, "%02d/%03d.mp3" % (ver_folder, tid))
+    mask = 1 << i
+    if os.path.exists(tfn):
+      id = id | mask
+  return id
+  
 #------------------------------------------------------------------------------
 # Main 
 #------------------------------------------------------------------------------
@@ -360,7 +447,8 @@ def Usage():
     print('   -t,--target   Specify target folder')
     print('   --tag xxx     Specify folder tag')
     print('   --catalog     Build catalog file')
-    print('   --index       Build index file')    
+    print('   --index       Build index file')
+    print('   --ver         Specify version')
     print('   -v            Verbose')
 
 def main(argv):
@@ -375,6 +463,8 @@ def main(argv):
   global CleanFlag
   global IndexFlag
   global CatalogFlag
+  global DataVersion
+  global VersionFolder
   
   VerboseFlag = False
   TestFlag = False
@@ -384,9 +474,10 @@ def main(argv):
   FolderBase = 0
   SourceFolder = False
   TargetFolder = False
+  DataVersion = False
   
   try:
-    opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "index", "clean", "sim"])
+    opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "index", "clean", "ver=", "test", "sim"])
   except getopt.GetoptError:
     Usage()
     sys.exit(2)
@@ -414,8 +505,10 @@ def main(argv):
       IndexFlag = True
     elif opt in ("--sim"):            # Simulation
       SimFlag = True
-    elif opt in ("-t"):               # Test Code
+    elif opt in ("--test"):           # Test Code
       TestFlag = True
+    elif opt in ("--ver"):            # Data Version
+      DataVersion = StringToInt(arg)
     else:
       print ("Unknow options", opt, arg)
   
@@ -428,6 +521,8 @@ def main(argv):
   print("Verbose Flag   = %d" % (VerboseFlag))
   print("Catalog Flag   = %d" % (CatalogFlag))
   print("Index Flag     = %d" % (IndexFlag))
+  print("Data Version   = 0x%08X" % (DataVersion))
+  print("Version Folder = %d" % (VersionFolder))
 
   if SourceFolder == False or TargetFolder == False:
     print("Error: -s xxx and -t xxx is rquired")
@@ -436,15 +531,22 @@ def main(argv):
   #
   # Prcess Route
   #
+  if CleanFlag:
+    EmptyFolder(TargetFolder)
+    
   if ConvertFlag != False:
-    if CleanFlag:
-      EmptyFolder(TargetFolder)
     ConvertFolder(SourceFolder, TargetFolder)
         
   if CatalogFlag:
     BuildCatalogFile(TargetFolder)
 
+  if DataVersion != False:
+    BuildDataVersion(VersionFolder, DataVersion)
+    
   if TestFlag != False:
+    BuildDataVersion(VersionFolder, 0x55AA)
+    id = GetDataVersion(VersionFolder)
+    print("id=0x%02X" % (id))
     # db_list = GetDatabaseList()
     # print(db_list)
     pass
