@@ -29,6 +29,10 @@ IndexFlag = False
 CatalogFlag = False
 DataVersion = False
 VersionFolder = 99
+ConfigFile = False
+ConfigData = False
+VersionFileFolder = False
+VersionFileTrack = False
 
 #------------------------------------------------------------------------------
 # Common Functions
@@ -393,18 +397,40 @@ def BuildCatalogFile(target_folder):
 #------------------------------------------------------------------------------
 # Version File Functions
 #------------------------------------------------------------------------------
-def GetSampleFile():
+def GetFolderId(fn):
+  result = False
+  num = fn[0:2]
+  if num.isnumeric():
+    result = int(num)
+  return result
+  
+def GetTrackId(fn):
+  result = False
+  num = fn[0:3]
+  if num.isnumeric():
+    result = int(num)
+  return result
+  
+def GetSampleFile(find_folder_id, find_track_id):
   global SourceFolder
+  global VersionFileFolder
+  global VersionFileTrack
   result = False
   dir = SourceFolder
-  for file in sorted(os.listdir(dir)):
-    folder2 = os.path.join (dir, file)
-    if os.path.isdir(folder2):             # Find first folder
-      for file2 in sorted(os.listdir(folder2)):
-        full2 = os.path.join (folder2, file2)
-        if os.path.isfile(full2):
-          result = full2
-          break
+  for entry in sorted(os.listdir(dir)):
+    full = os.path.join(dir, entry)
+    if os.path.isdir(full):             # Find first folder
+      folder_id = GetFolderId(entry)
+      if find_folder_id == False or folder_id == find_folder_id:
+        folder = full
+        for entry in sorted(os.listdir(folder)):
+          file = entry
+          full = os.path.join (folder, entry)
+          if os.path.isfile(full):        
+            file_id = GetTrackId(entry)
+            if find_track_id == False or file_id == find_track_id:
+              result = full
+              break
     if result != False:
       break
   return result
@@ -412,7 +438,12 @@ def GetSampleFile():
 def BuildDataVersion(ver_folder, id):
   global SourceFolder
   global TargetFolder
-  sfn = GetSampleFile()
+  global VersionFileFolder
+  global VersionFileTrack
+  print(VersionFileFolder, VersionFileTrack)
+  sfn = GetSampleFile(VersionFileFolder, VersionFileTrack)
+  if sfn == False:
+    sfn = GetSampleFile(1, 1)
   for i in range(0, 31):
     tid = i+1
     tfn = os.path.join(TargetFolder, "%02d/%03d.mp3" % (ver_folder, tid))
@@ -465,7 +496,11 @@ def main(argv):
   global CatalogFlag
   global DataVersion
   global VersionFolder
-  
+  global ConfigFile
+  global ConfigData
+  global VersionFileFolder
+  global VersionFileTrack
+
   VerboseFlag = False
   TestFlag = False
   CleanFlag = False
@@ -475,6 +510,15 @@ def main(argv):
   SourceFolder = False
   TargetFolder = False
   DataVersion = False
+
+  ConfigFile = __file__.replace(".py", ".json")
+  ConfigData = ReadJsonFile(ConfigFile)
+  if "VersionFile" in ConfigData:
+    vfcfg = ConfigData["VersionFile"]
+    if "Folder" in vfcfg:   
+      VersionFileFolder = vfcfg["Folder"]
+    if "Track" in vfcfg:   
+      VersionFileTrack = vfcfg["Track"]
   
   try:
     opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "index", "clean", "ver=", "test", "sim"])
