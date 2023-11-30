@@ -31,8 +31,8 @@ DataVersion = False
 VersionFolder = 99
 ConfigFile = False
 ConfigData = False
-VersionFileFolder = False
-VersionFileTrack = False
+VersionFileFolder = 1
+VersionFileTrack = 1
 
 #------------------------------------------------------------------------------
 # Common Functions
@@ -567,6 +567,8 @@ def main(argv):
   print("Index Flag     = %d" % (IndexFlag))
   print("Data Version   = 0x%08X" % (DataVersion))
   print("Version Folder = %d" % (VersionFolder))
+  print("VerFile Folder = %d" % (VersionFileFolder))
+  print("VerFile Track  = %d" % (VersionFileTrack))
 
   if SourceFolder == False or TargetFolder == False:
     print("Error: -s xxx and -t xxx is rquired")
