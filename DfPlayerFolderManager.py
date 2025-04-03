@@ -33,6 +33,7 @@ ConfigFile = False
 ConfigData = False
 VersionFileFolder = 1
 VersionFileTrack = 1
+DebugFlags = 0
 
 #------------------------------------------------------------------------------
 # Common Functions
@@ -159,6 +160,191 @@ def StringToInt(str):
     result = int(str)
   return result
 
+#------------------------------------------------------------------------------
+# Folder/File Common Functions
+#------------------------------------------------------------------------------
+def GetFirstPathNode(full):
+  separator = "/"
+  items = full.split("/") 
+  path_node = False
+  remind_nodes = []
+  for item in items:
+    if path_node != False:
+      remind_nodes.append(item)
+    elif item != ".":
+      path_node = item  
+  if len(remind_nodes) == 0:
+    remind_path = "."
+  else:
+    remind_path = separator.join(remind_nodes)
+  return path_node, remind_path
+  
+#------------------------------------------------------------------------------
+# Folder/File Class
+#------------------------------------------------------------------------------
+class ENTRY_CLASS:
+  def __init__(self, full, type):
+    self.Full = full;
+    self.Name = os.path.basename(full)
+    self.Type = type            # 0: File, 1:Dir
+    
+class FILE_CLASS(ENTRY_CLASS):
+  def __init__(self, full):
+    global DebugFlags
+    super().__init__(full, 0)
+    if DebugFlags and 1:
+      print("#"+full)
+    
+class FOLDER_CLASS(ENTRY_CLASS):  
+  def __init__(self, full):
+    global DebugFlags
+    super().__init__(full, 1)
+    if DebugFlags and 1:
+      print("@"+full)
+    self.List = []
+    self.Build()
+  
+  def Build(self):
+    flist = os.listdir(self.Full)
+    for f in flist:
+      full = os.path.join(self.Full, f)
+      if (os.path.isdir(full)):
+        fobj = FOLDER_CLASS(full)
+        self.List.append(fobj)
+      else:
+        fobj = FILE_CLASS(full)
+        self.List.append(fobj)        
+  
+  def GetMatchItem(self, name):
+    result = False
+    for item in self.List:
+      if name == item.Name:
+        result = item
+    return result
+  
+  def Dump(self):
+    for item in self.List:
+      print(item.Name, item.Type)
+      
+  def isdir(self, rpath):
+    st = False
+    if rpath == ".":
+      st = True
+    else:
+      path_node,remind_path = GetFirstPathNode(rpath)
+      item = self.GetMatchItem(path_node)
+      if item != False:
+        st = item.isdir(remind_path)
+    return st
+    
+  def isfile(self, rpath):
+    st = False
+    path_node,remind_path = GetFirstPathNode(rpath)
+    if path_node != False:
+      item = self.GetMatchItem(path_node)
+    #
+    # Process match file or next level path
+    #
+    if item == False:                   # Not found
+      pass
+    elif remind_path == ".":            # is last node
+      if item.Type == 0:                # is file type
+        st = True
+    else:
+      st = item.isfile(remind_path)
+    return st
+    
+  def listdir(self, rpath):
+    flist = False
+    #
+    # Find first node
+    #
+    path_node,remind_path = GetFirstPathNode(rpath)
+    #
+    # Process first node
+    #
+    if path_node == False:
+      flist = []
+      for item in self.List:
+        flist.append(item.Name)      
+    else:              
+      for item in self.List:
+        if path_node == item.Name:
+          flist = item.listdir(remind_path)        
+    return flist
+      
+class VIRTUAL_FOLDER_CLASS:
+  def __init__(self, vcfg, indent = ""):
+    self.VCFG = False
+    self.Folder = False
+    self.Indent = indent
+    self.BaseList = []    
+    self.RemoveList = []
+    self.AddList = []
+    if os.path.isfile(vcfg):
+      print("VIRTUAL_FOLDER_CLASS, VCFG="+vcfg)
+      self.VCFG = vcfg
+      self.ParseVCFG()
+    else:
+      self.Folder = vcfg
+      print("VIRTUAL_FOLDER_CLASS, Folder="+vcfg)
+      # sys.exit("VCFG not found")
+      
+  def ParseVCFG(self):
+    lines = ReadFileToArray(self.VCFG)
+    for line in lines:
+      line = line.strip()
+      prefix = line[0:1]
+      line = line[1:]
+      if prefix == "@":        
+        vobj = VIRTUAL_FOLDER_CLASS(line, self.Indent+"  ")
+        self.BaseList.append(vobj)
+        print(self.Indent+"Base..."+line)
+      elif prefix == "-":
+        self.RemoveList.append(line)
+        print(self.Indent+"Remove..."+line)
+      elif prefix == "+":
+        self.AddList.append(line)
+        print(self.Indent+"Add..."+line)
+
+  def listdir(self, rpath):    
+    parent = False
+    bsize = len(self.BaseList)
+    # print(bsize)
+    if self.Folder != False:
+      fullpath = os.path.join(self.Folder, rpath)
+      flist = os.listdir(fullpath)
+    else:
+      for i in range(bsize):
+        j = (bsize-1) - i
+        bobj = self.BaseList[j]
+        flist = bobj.listdir(rpath)
+        if flist != False:
+          break
+      # parent = bobj
+    # if parent != False:
+      # parent.listdir(rpath)
+    # if self.Folder != False:
+      # fullpath = os.path.join(self.Folder, rpath)
+      # flist = os.listdir(fullpath)
+    # else:
+      # flist = False
+    return flist
+      
+  def Dump(self):
+    print(self.Indent+"-- Dump() --", self.VCFG, self.Folder)
+    for bobj in self.BaseList:
+      bobj.Dump()
+    for item in self.RemoveList:
+      print(self.Indent+"Remove = "+item)
+    for item in self.AddList:
+      print(self.Indent+"Add = "+item)
+    
+def LoadVirtualFolder(vcfg):
+  vobj = VIRTUAL_FOLDER_CLASS(vcfg)
+  return vobj
+  # vobj.Dump()
+  
 #------------------------------------------------------------------------------
 # Find functions
 #------------------------------------------------------------------------------
@@ -521,7 +707,7 @@ def main(argv):
       VersionFileTrack = vfcfg["Track"]
   
   try:
-    opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "index", "clean", "ver=", "test", "sim"])
+    opts, args = getopt.getopt(argv,"cb:s:t:m:h",["source=", "target=", "base", "mode", "tag=", "catalog", "index", "clean", "ver=", "test"])
   except getopt.GetoptError:
     Usage()
     sys.exit(2)
@@ -565,10 +751,43 @@ def main(argv):
   print("Verbose Flag   = %d" % (VerboseFlag))
   print("Catalog Flag   = %d" % (CatalogFlag))
   print("Index Flag     = %d" % (IndexFlag))
+  print("Test Flag      = %d" % (TestFlag))
   print("Data Version   = 0x%08X" % (DataVersion))
   print("Version Folder = %d" % (VersionFolder))
   print("VerFile Folder = %d" % (VersionFileFolder))
   print("VerFile Track  = %d" % (VersionFileTrack))
+
+
+  if TestFlag != False:
+    # print("Load......Source100.txt")
+    # vobj = LoadVirtualFolder("Source100.txt")
+    # flist = vobj.listdir(".");
+    # print("Source100="+json_encode(flist))
+    
+    # print("Load......Source101.txt")
+    # vobj = LoadVirtualFolder("Source101.txt")
+    # flist = vobj.listdir(".");
+    # print("Source101="+json_encode(flist))
+
+    # flist = os.listdir("XXX")
+    # print(flist)
+    fobj = FOLDER_CLASS(".")
+    # flist = fobj.listdir("./Source1")
+    # print(flist)
+    # st = fobj.isdir("./Source1x")
+    st = fobj.isfile("./Source1/ReadMe.txt1")
+    print(st)
+
+    # path_name, remind_path = GetFirstPathNode("./Source1/A/B")
+    # print("path_name="+path_name)
+    # print("remind_path="+remind_path)
+    
+    # BuildDataVersion(VersionFolder, 0x55AA)
+    # id = GetDataVersion(VersionFolder)
+    # print("id=0x%02X" % (id))
+    # db_list = GetDatabaseList()
+    # print(db_list)
+    sys.exit(2)
 
   if SourceFolder == False or TargetFolder == False:
     print("Error: -s xxx and -t xxx is rquired")
@@ -588,14 +807,6 @@ def main(argv):
 
   if DataVersion != False:
     BuildDataVersion(VersionFolder, DataVersion)
-    
-  if TestFlag != False:
-    BuildDataVersion(VersionFolder, 0x55AA)
-    id = GetDataVersion(VersionFolder)
-    print("id=0x%02X" % (id))
-    # db_list = GetDatabaseList()
-    # print(db_list)
-    pass
     
 if __name__ == "__main__":
    main(sys.argv[1:])
