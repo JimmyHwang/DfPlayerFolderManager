@@ -231,35 +231,49 @@ class FOLDER_CLASS(ENTRY_CLASS):
         item.Dump(rpath + "/" + item.Name)
       else:        
         print(full, "(Full="+item.Full+")")
-      
-  def isdir(self, rpath):
-    st = False
+
+  def GetFileObj(self, rpath, flags = 0):
+    fobj = False
     if rpath == ".":
-      st = True
+      fobj = self
     else:
       path_node,remind_path = GetFirstPathNode(rpath)
-      item = self.GetMatchItem(path_node)
-      if item != False:
-        st = item.isdir(remind_path)
+      if path_node != False:
+        item = self.GetMatchItem(path_node)
+      #
+      # Process match file or next level path
+      #
+      if item == False:                   # Not found
+        pass
+      elif remind_path == ".":            # is last node
+        fobj = item
+      else:
+        fobj = item.GetFileObj(remind_path)
+    return fobj
+    
+  def isdir(self, rpath):
+    st = False
+    fobj = self.GetFileObj(rpath)
+    if fobj != False:
+      if fobj.Type == 1:                # is dir type
+        st = True
     return st
     
   def isfile(self, rpath):
     st = False
-    path_node,remind_path = GetFirstPathNode(rpath)
-    if path_node != False:
-      item = self.GetMatchItem(path_node)
-    #
-    # Process match file or next level path
-    #
-    if item == False:                   # Not found
-      pass
-    elif remind_path == ".":            # is last node
-      if item.Type == 0:                # is file type
+    fobj = self.GetFileObj(rpath)
+    if fobj != False:
+      if fobj.Type == 0:                # is file type
         st = True
-    else:
-      st = item.isfile(remind_path)
     return st
 
+  def exists(self, rpath):
+    st = False
+    fobj = self.GetFileObj(rpath)
+    if fobj != False:
+      st = True
+    return st
+    
   def mkdir(self, rpath):
     if rpath != ".":
       path_node,remind_path = GetFirstPathNode(rpath)
@@ -271,22 +285,16 @@ class FOLDER_CLASS(ENTRY_CLASS):
         fobj.mkdir(remind_path)          
     
   def listdir(self, rpath):
-    flist = False
-    #
-    # Find first node
-    #
-    path_node,remind_path = GetFirstPathNode(rpath)
-    #
-    # Process first node
-    #
-    if path_node == False:
+    flist = False    
+    if rpath == ".":
       flist = []
       for item in self.List:
         flist.append(item.Name)      
-    else:              
-      for item in self.List:
-        if path_node == item.Name:
-          flist = item.listdir(remind_path)        
+    else:
+      fobj = self.GetFileObj(rpath)
+      if fobj != False:
+        if fobj.Type == 1:
+          flist = fobj.listdir(".")
     return flist
     
   def RemoveFile(self, rpath):
@@ -354,7 +362,16 @@ class FOLDER_CLASS(ENTRY_CLASS):
           pass
         else:
           fobj.Full = nobj.Full
-        
+  
+  def ReadTextFile(self, fn):
+    pass
+    
+  def WriteTextFile(self, fn):
+    pass
+
+#
+#
+#
 def GetSpaceStringN(level):
   line = ""
   for i in range(level):
@@ -707,6 +724,47 @@ def GetDataVersion(ver_folder):
       id = id | mask
   return id
   
+def TestCode():
+  fobj = FOLDER_CLASS("./Test1")
+  fobj.Build()
+  fobj.AddFile("./Test2", "A.txt")
+  fobj.AddFile("./Test2", "B.txt")
+  fobj.AddFile("./Test2", "A2/B3.txt")
+  st = fobj.isfile("D.txt")
+  print("D.txt exists = "+str(st))
+  flist = fobj.listdir("./A2")
+  print("A2 lisrdir = "+ json_encode(flist))
+  fobj.RemoveFile("D.txt")
+  fobj.mkdir("C/D")
+  mobj = FOLDER_CLASS("./Test3")
+  mobj.Build()
+  fobj.Merge(mobj)
+  fobj.Dump()
+
+  # print("Load......Source100.txt")
+  # vobj = LoadVirtualFolder("./Source100.txt")
+  # print("Load......Source101.txt")
+  # vobj = LoadVirtualFolder("./Source101.txt")
+  # vobj.Dump()
+  # flist = vobj.listdir(".");
+  # print("Source100="+json_encode(flist))
+  
+  # print("Load......Source101.txt")
+  # vobj = LoadVirtualFolder("Source101.txt")
+  # flist = vobj.listdir(".");
+  # print("Source101="+json_encode(flist))
+  
+  # path_name, remind_path = GetFirstPathNode("./Source1/A/B")
+  # print("path_name="+path_name)
+  # print("remind_path="+remind_path)
+  
+  # BuildDataVersion(VersionFolder, 0x55AA)
+  # id = GetDataVersion(VersionFolder)
+  # print("id=0x%02X" % (id))
+  # db_list = GetDatabaseList()
+  # print(db_list)
+  sys.exit(2)
+  
 #------------------------------------------------------------------------------
 # Main 
 #------------------------------------------------------------------------------
@@ -815,41 +873,7 @@ def main(argv):
   print("VerFile Track  = %d" % (VersionFileTrack))
 
   if TestFlag != False:
-    fobj = FOLDER_CLASS("./Test1")
-    fobj.Build()
-    fobj.AddFile("./Test2", "A.txt")
-    fobj.AddFile("./Test2", "B.txt")
-    fobj.AddFile("./Test2", "A2/B3.txt")
-    fobj.RemoveFile("D.txt")
-    fobj.mkdir("C/D")
-    mobj = FOLDER_CLASS("./Test3")
-    mobj.Build()
-    fobj.Merge(mobj)
-    fobj.Dump()
-
-    # print("Load......Source100.txt")
-    # vobj = LoadVirtualFolder("./Source100.txt")
-    # print("Load......Source101.txt")
-    # vobj = LoadVirtualFolder("./Source101.txt")
-    # vobj.Dump()
-    # flist = vobj.listdir(".");
-    # print("Source100="+json_encode(flist))
-    
-    # print("Load......Source101.txt")
-    # vobj = LoadVirtualFolder("Source101.txt")
-    # flist = vobj.listdir(".");
-    # print("Source101="+json_encode(flist))
-    
-    # path_name, remind_path = GetFirstPathNode("./Source1/A/B")
-    # print("path_name="+path_name)
-    # print("remind_path="+remind_path)
-    
-    # BuildDataVersion(VersionFolder, 0x55AA)
-    # id = GetDataVersion(VersionFolder)
-    # print("id=0x%02X" % (id))
-    # db_list = GetDatabaseList()
-    # print(db_list)
-    sys.exit(2)
+    TestCode()
 
   if SourceFolder == False or TargetFolder == False:
     print("Error: -s xxx and -t xxx is rquired")
