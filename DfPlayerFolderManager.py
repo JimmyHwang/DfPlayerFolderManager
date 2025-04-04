@@ -259,6 +259,16 @@ class FOLDER_CLASS(ENTRY_CLASS):
     else:
       st = item.isfile(remind_path)
     return st
+
+  def mkdir(self, rpath):
+    if rpath != ".":
+      path_node,remind_path = GetFirstPathNode(rpath)
+      if path_node != False:
+        fobj = self.GetMatchItem(path_node)
+        if fobj == False:
+          fobj = FOLDER_CLASS(path_node)
+          self.List.append(fobj)
+        fobj.mkdir(remind_path)          
     
   def listdir(self, rpath):
     flist = False
@@ -305,93 +315,92 @@ class FOLDER_CLASS(ENTRY_CLASS):
       if remind_path == ".":            # create file
         full = os.path.join(base, path_node)
         if os.path.isfile(full):
-          fobj = FILE_CLASS(full)
-          self.List.append(fobj)
+          fobj = self.GetMatchItem(path_node)
+          if fobj == False:
+            fobj = FILE_CLASS(full)
+            self.List.append(fobj)
+          else:
+            fobj.Full = full
           st = True
         else:
           print("ERROR: [%s] not found" % full)
       else:                             # create dir        
         full = os.path.join(self.Full, path_node)
-        item = self.GetMatchItem(path_node)
-        if item == False:
+        fobj = self.GetMatchItem(path_node)
+        if fobj == False:
           fobj = FOLDER_CLASS(full)
-        else:
-          fobj = item
         full = os.path.join(base, path_node)
         st = fobj.AddFile(full, remind_path)
     return st 
 
-class VIRTUAL_FOLDER_CLASS:
-  def __init__(self, vcfg, indent = ""):
-    self.VCFG = False
-    self.Folder = False
-    self.Indent = indent
-    self.BaseList = []    
-    self.RemoveList = []
-    self.AddList = []
-    if os.path.isfile(vcfg):
-      print("VIRTUAL_FOLDER_CLASS, VCFG="+vcfg)
-      self.VCFG = vcfg
-      self.ParseVCFG()
-    else:
-      self.Folder = vcfg
-      print("VIRTUAL_FOLDER_CLASS, Folder="+vcfg)
-      # sys.exit("VCFG not found")
-      
-  def ParseVCFG(self):
-    lines = ReadFileToArray(self.VCFG)
-    for line in lines:
-      line = line.strip()
-      prefix = line[0:1]
-      line = line[1:]
-      if prefix == "@":        
-        vobj = VIRTUAL_FOLDER_CLASS(line, self.Indent+"  ")
-        self.BaseList.append(vobj)
-        print(self.Indent+"Base..."+line)
-      elif prefix == "-":
-        self.RemoveList.append(line)
-        print(self.Indent+"Remove..."+line)
-      elif prefix == "+":
-        self.AddList.append(line)
-        print(self.Indent+"Add..."+line)
-
-  def listdir(self, rpath):    
-    parent = False
-    bsize = len(self.BaseList)
-    # print(bsize)
-    if self.Folder != False:
-      fullpath = os.path.join(self.Folder, rpath)
-      flist = os.listdir(fullpath)
-    else:
-      for i in range(bsize):
-        j = (bsize-1) - i
-        bobj = self.BaseList[j]
-        flist = bobj.listdir(rpath)
-        if flist != False:
-          break
-      # parent = bobj
-    # if parent != False:
-      # parent.listdir(rpath)
-    # if self.Folder != False:
-      # fullpath = os.path.join(self.Folder, rpath)
-      # flist = os.listdir(fullpath)
-    # else:
-      # flist = False
-    return flist
-      
-  def Dump(self):
-    print(self.Indent+"-- Dump() --", self.VCFG, self.Folder)
-    for bobj in self.BaseList:
-      bobj.Dump()
-    for item in self.RemoveList:
-      print(self.Indent+"Remove = "+item)
-    for item in self.AddList:
-      print(self.Indent+"Add = "+item)
-    
-def LoadVirtualFolder(vcfg):
-  vobj = VIRTUAL_FOLDER_CLASS(vcfg)
+  #
+  # Merge from sobj
+  #
+  def Merge(self, sobj):
+    st = False
+    for nobj in sobj.List:
+      # print("nobj.Name [%s]" % (nobj.Name))
+      fobj = self.GetMatchItem(nobj.Name)
+      if fobj == False:                 # Not exists
+        if nobj.Type == 1:
+          fobj = FOLDER_CLASS(nobj.Name)
+          fobj.Merge(nobj)
+        else:
+          fobj = FILE_CLASS(nobj.Full)
+          print("Merge File [%s]" % (nobj.Full))          
+        self.List.append(fobj)
+      else:                             # Exists
+        if fobj.Type == 1:
+          pass
+        else:
+          fobj.Full = nobj.Full
+        
+def GetSpaceStringN(level):
+  line = ""
+  for i in range(level):
+    line = line + " "
+  return line
+  
+def LoadVirtualFolder(vcfg, level = 0):
+  global DebugFlags
+  vobj = False
+  spcs = GetSpaceStringN(level)
+  print("%s[%d]LoadVirtualFolder = %s" % (spcs, level, vcfg))
+  lines = ReadFileToArray(vcfg)
+  for line in lines:
+    line = line.strip()
+    if DebugFlags & 1:
+      print("Parse......[%s]" % line)
+    prefix = line[0:1]
+    line = line[1:]
+    if prefix == "#":
+      pass
+    elif prefix == "@":
+      if os.path.isfile(line):
+        print("%s[%d]VCFG Base......%s" % (spcs, level, line))
+        vobj = LoadVirtualFolder(line, level+1)
+      else:
+        print("%s[%d]Folder Base......%s" % (spcs, level, line))
+        vobj = FOLDER_CLASS(line)
+        vobj.Build()
+    elif prefix == "-":
+      vobj.RemoveFile(line)
+      print("%s[%d]Remove......%s" % (spcs, level, line))
+    elif prefix == "+":
+      temp = line.split("|")
+      if len(temp) == 1:                # Folder
+        print("%s[%d]Merge Folder [%s]" % (spcs, level, temp[0]))
+        nobj = FOLDER_CLASS(temp[0])
+        nobj.Build()
+        vobj.Merge(nobj)
+      else:                             # File
+        base = temp[0]
+        rpath = temp[1]
+        # print("base="+base)
+        # print("rpath="+rpath)
+        vobj.AddFile(base, rpath)
+        print("%s[%d]Add......%s %s" % (spcs, level, base, rpath))
   return vobj
-  # vobj.Dump()
   
 #------------------------------------------------------------------------------
 # Find functions
@@ -806,8 +815,23 @@ def main(argv):
   print("VerFile Track  = %d" % (VersionFileTrack))
 
   if TestFlag != False:
+    fobj = FOLDER_CLASS("./Test1")
+    fobj.Build()
+    fobj.AddFile("./Test2", "A.txt")
+    fobj.AddFile("./Test2", "B.txt")
+    fobj.AddFile("./Test2", "A2/B3.txt")
+    fobj.RemoveFile("D.txt")
+    fobj.mkdir("C/D")
+    mobj = FOLDER_CLASS("./Test3")
+    mobj.Build()
+    fobj.Merge(mobj)
+    fobj.Dump()
+
     # print("Load......Source100.txt")
-    # vobj = LoadVirtualFolder("Source100.txt")
+    # vobj = LoadVirtualFolder("./Source100.txt")
+    # print("Load......Source101.txt")
+    # vobj = LoadVirtualFolder("./Source101.txt")
+    # vobj.Dump()
     # flist = vobj.listdir(".");
     # print("Source100="+json_encode(flist))
     
@@ -816,13 +840,6 @@ def main(argv):
     # flist = vobj.listdir(".");
     # print("Source101="+json_encode(flist))
     
-    fobj = FOLDER_CLASS("./Test1")
-    fobj.Build()
-    fobj.AddFile("./Test2", "B.txt")
-    fobj.AddFile("./Test2", "A2/B3.txt")
-    fobj.RemoveFile("A.txt")
-    fobj.Dump()
-
     # path_name, remind_path = GetFirstPathNode("./Source1/A/B")
     # print("path_name="+path_name)
     # print("remind_path="+remind_path)
