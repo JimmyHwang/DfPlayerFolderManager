@@ -202,7 +202,6 @@ class FOLDER_CLASS(ENTRY_CLASS):
     if DebugFlags and 1:
       print("@"+full)
     self.List = []
-    self.Build()
   
   def Build(self):
     flist = os.listdir(self.Full)
@@ -210,6 +209,7 @@ class FOLDER_CLASS(ENTRY_CLASS):
       full = os.path.join(self.Full, f)
       if (os.path.isdir(full)):
         fobj = FOLDER_CLASS(full)
+        fobj.Build()
         self.List.append(fobj)
       else:
         fobj = FILE_CLASS(full)
@@ -222,9 +222,15 @@ class FOLDER_CLASS(ENTRY_CLASS):
         result = item
     return result
   
-  def Dump(self):
+  def Dump(self, rpath = ""):
+    # print("Dump() - "+rpath)
     for item in self.List:
-      print(item.Name, item.Type)
+      full = os.path.join(rpath, item.Name)
+      if item.Type == 1:
+        print("["+item.Name+"] - "+full)
+        item.Dump(rpath + "/" + item.Name)
+      else:        
+        print(full, "(Full="+item.Full+")")
       
   def isdir(self, rpath):
     st = False
@@ -272,7 +278,48 @@ class FOLDER_CLASS(ENTRY_CLASS):
         if path_node == item.Name:
           flist = item.listdir(remind_path)        
     return flist
-      
+    
+  def RemoveFile(self, rpath):
+    st = False
+    path_node,remind_path = GetFirstPathNode(rpath)
+    if path_node != False:
+      item = self.GetMatchItem(path_node)
+    #
+    # Process match file or next level path
+    #
+    if item == False:                   # Not found
+      pass
+    elif remind_path == ".":            # is last node
+      if item.Type == 0:                # is file type
+        index = self.List.index(item)
+        del self.List[index]
+        st = True
+    else:
+      st = item.isfile(remind_path)
+    return st
+    
+  def AddFile(self, base, rpath):
+    st = False
+    path_node,remind_path = GetFirstPathNode(rpath)
+    if path_node != False:
+      if remind_path == ".":            # create file
+        full = os.path.join(base, path_node)
+        fobj = FILE_CLASS(full)
+        self.List.append(fobj)
+        st = True
+      else:                             # create dir        
+        full = os.path.join(self.Full, path_node)
+        print(self.Full, path_node)
+        item = self.GetMatchItem(path_node)
+        print(item)
+        if item == False:
+          fobj = FOLDER_CLASS(full)
+        else:
+          fobj = item
+        full = os.path.join(base, path_node)
+        st = fobj.AddFile(full, remind_path)
+    return st 
+
 class VIRTUAL_FOLDER_CLASS:
   def __init__(self, vcfg, indent = ""):
     self.VCFG = False
@@ -771,12 +818,17 @@ def main(argv):
 
     # flist = os.listdir("XXX")
     # print(flist)
-    fobj = FOLDER_CLASS(".")
+    fobj = FOLDER_CLASS("./Test1")
+    fobj.Build()
+    fobj.AddFile("./Test2", "B.txt")
+    fobj.AddFile("./Test2", "A2/B3.txt")
     # flist = fobj.listdir("./Source1")
     # print(flist)
     # st = fobj.isdir("./Source1x")
-    st = fobj.isfile("./Source1/ReadMe.txt1")
-    print(st)
+    # st = fobj.isfile("./Source1/ReadMe.txt1")
+    # print(st)
+    # fobj.AddFile("Source2/ReadMe.txt")
+    fobj.Dump()
 
     # path_name, remind_path = GetFirstPathNode("./Source1/A/B")
     # print("path_name="+path_name)
