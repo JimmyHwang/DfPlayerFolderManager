@@ -363,12 +363,27 @@ class FOLDER_CLASS(ENTRY_CLASS):
         else:
           fobj.Full = nobj.Full
   
-  def ReadTextFile(self, fn):
-    pass
-    
-  def WriteTextFile(self, fn):
+  def ReadTextFile(self, rpath):
+    data = False
+    fobj = self.GetFileObj(rpath)
+    if fobj != False:
+      if fobj.Type == 0:
+        data = ReadTextFile(fobj.Full)
+    return data
+
+  def WriteTextFile(self, rpath, data):
     pass
 
+  def ReadJsonFile(self, rpath):
+    obj = {}
+    jstr = self.ReadTextFile(rpath)
+    if jstr != False:
+      obj = json_decode(jstr)
+    return obj
+
+  def WriteJsonFile(self, rpath, data):
+    pass
+    
 #
 #
 #
@@ -734,6 +749,10 @@ def TestCode():
   print("D.txt exists = "+str(st))
   flist = fobj.listdir("./A2")
   print("A2 lisrdir = "+ json_encode(flist))
+  data = fobj.ReadTextFile("./A1/A1.txt")
+  print("A1.txt = "+data)
+  data = fobj.ReadJsonFile("./A1/A1.txt")
+  print("A1.txt with json = "+json_encode(data))
   fobj.RemoveFile("D.txt")
   fobj.mkdir("C/D")
   mobj = FOLDER_CLASS("./Test3")
