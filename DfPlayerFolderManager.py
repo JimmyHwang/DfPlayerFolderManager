@@ -304,14 +304,15 @@ class FOLDER_CLASS(ENTRY_CLASS):
     if path_node != False:
       if remind_path == ".":            # create file
         full = os.path.join(base, path_node)
-        fobj = FILE_CLASS(full)
-        self.List.append(fobj)
-        st = True
+        if os.path.isfile(full):
+          fobj = FILE_CLASS(full)
+          self.List.append(fobj)
+          st = True
+        else:
+          print("ERROR: [%s] not found" % full)
       else:                             # create dir        
         full = os.path.join(self.Full, path_node)
-        print(self.Full, path_node)
         item = self.GetMatchItem(path_node)
-        print(item)
         if item == False:
           fobj = FOLDER_CLASS(full)
         else:
@@ -804,7 +805,6 @@ def main(argv):
   print("VerFile Folder = %d" % (VersionFileFolder))
   print("VerFile Track  = %d" % (VersionFileTrack))
 
-
   if TestFlag != False:
     # print("Load......Source100.txt")
     # vobj = LoadVirtualFolder("Source100.txt")
@@ -815,19 +815,12 @@ def main(argv):
     # vobj = LoadVirtualFolder("Source101.txt")
     # flist = vobj.listdir(".");
     # print("Source101="+json_encode(flist))
-
-    # flist = os.listdir("XXX")
-    # print(flist)
+    
     fobj = FOLDER_CLASS("./Test1")
     fobj.Build()
     fobj.AddFile("./Test2", "B.txt")
     fobj.AddFile("./Test2", "A2/B3.txt")
-    # flist = fobj.listdir("./Source1")
-    # print(flist)
-    # st = fobj.isdir("./Source1x")
-    # st = fobj.isfile("./Source1/ReadMe.txt1")
-    # print(st)
-    # fobj.AddFile("Source2/ReadMe.txt")
+    fobj.RemoveFile("A.txt")
     fobj.Dump()
 
     # path_name, remind_path = GetFirstPathNode("./Source1/A/B")
