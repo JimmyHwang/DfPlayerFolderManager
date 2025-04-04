@@ -250,6 +250,14 @@ class FOLDER_CLASS(ENTRY_CLASS):
       else:
         fobj = item.GetFileObj(remind_path)
     return fobj
+
+  def GetFilePath(self, rpath):
+    full = False
+    fobj = self.GetFileObj(rpath)
+    if fobj != False:
+      if fobj.Type == 0:
+        full = fobj.Full
+    return full
     
   def isdir(self, rpath):
     st = False
@@ -469,11 +477,11 @@ def IsSystemFolder(folder):
         st = True
   return st
   
-def GetMp3FileCount(base_dir):
+def GetMp3FileCount(vobj, base_dir):
   count = 0
-  for file in sorted(os.listdir(base_dir)):
+  for file in sorted(vobj.listdir(base_dir)):
     full = os.path.join(base_dir, file)
-    if (os.path.isdir(full)):
+    if (vobj.isdir(full)):
       pass
     else:
       ext = GetFileExtension(file)
@@ -483,16 +491,22 @@ def GetMp3FileCount(base_dir):
 
 def ConvertNest(args, rpath):
   global VerboseFlag
-
+  global DebugFlags
+  
   base = args["Base"]
   target_folder = args["Target"]
+  vobj = args["VOBJ"]                   # Create with base
   mode = args["Mode"]
   level = args["Level"]
   folder_tag = args["FolderTag"]
   result = False  
   mkdirr(target_folder)
-  
-  base_dir = os.path.join (base, rpath)
+
+  if rpath == "":
+    base_dir = base
+  else:
+    base_dir = os.path.join(base, rpath)
+    
   if level == 1 and IsSystemFolder(base_dir):
     print("----------------------------------------")
     print(" System Folder [%s]" % (base_dir))
@@ -522,7 +536,7 @@ def ConvertNest(args, rpath):
         args["OriginFolder"] = rpath
         origin_folder = rpath
       if level >= 1:
-        file_count = GetMp3FileCount(base_dir)
+        file_count = GetMp3FileCount(vobj, base_dir)
         print("SongsCount=%d, file_count=%d" % (args["SongCount"], file_count))
         if args["SongCount"] + file_count > 255:
           args["FolderId"] = args["FolderId"] + 1
@@ -535,9 +549,9 @@ def ConvertNest(args, rpath):
       pass
     mkdirr(output_folder)
     
-    for file in sorted(os.listdir(base_dir)):
+    for file in sorted(vobj.listdir(base_dir)):
       full = os.path.join(base_dir, file)
-      if (os.path.isdir(full)):
+      if (vobj.isdir(full)):
         backup_song_id = False
         if mode == MODE_MULTIPLE or (mode == MODE_SERIES and level == 0):
           backup_song_id = args["SongId"]
@@ -563,14 +577,18 @@ def ConvertNest(args, rpath):
             print(full)
             print(new_full)
           if SimFlag == False:
-            shutil.copyfile(full, new_full)
+            if VerboseFlag:
+              print("Copy1 [%s] to [%s]" % (vobj.GetFilePath(full), new_full))
+            shutil.copyfile(vobj.GetFilePath(full), new_full)
         elif level == 0:
           new_full = os.path.join(target_folder, file)          
           if VerboseFlag:
             print(full)
             print(new_full)
           if SimFlag == False:
-            shutil.copyfile(full, new_full)
+            if VerboseFlag:
+              print("Copy2 [%s] to [%s]" % (vobj.GetFilePath(full), new_full))
+            shutil.copyfile(vobj.GetFilePath(full), new_full)
 
     #
     # Write folder information file
@@ -607,6 +625,8 @@ def ConvertFolder(src, dst):
   #
   # Scan folder and convert
   #  
+  vobj = LoadVirtualFolder(src)
+  src = "."
   args = {}
   args["Mode"] = ConvertMode
   args["Base"] = src
@@ -615,6 +635,7 @@ def ConvertFolder(src, dst):
   args["FolderId"] = FolderBase
   args["FolderTag"] = FolderTag
   args["SongId"] = 1
+  args["VOBJ"] = vobj
   ConvertNest(args, "")
 
 def BuildIndexFile(song_folder):
@@ -622,10 +643,10 @@ def BuildIndexFile(song_folder):
   global IndexFlag
   index_cfg = {}
   song_list = []
-  
+
   index_file = os.path.join(song_folder, INDEX_FILE)
   if os.path.exists(index_file):
-    index_cfg = ReadJsonFile(index_file)    
+    index_cfg = ReadJsonFile(index_file)
   if "Folder" not in index_cfg:
     index_cfg["Folder"] = ""
   if "Tags" not in index_cfg:
@@ -686,24 +707,25 @@ def GetTrackId(fn):
     result = int(num)
   return result
   
-def GetSampleFile(find_folder_id, find_track_id):
+def GetSampleFile(vobj, find_folder_id, find_track_id):
   global SourceFolder
   global VersionFileFolder
   global VersionFileTrack
   result = False
-  dir = SourceFolder
-  for entry in sorted(os.listdir(dir)):
+  dir = "."
+  for entry in sorted(vobj.listdir(dir)):
     full = os.path.join(dir, entry)
-    if os.path.isdir(full):             # Find first folder
+    if vobj.isdir(full):             # Find first folder
       folder_id = GetFolderId(entry)
       if find_folder_id == False or folder_id == find_folder_id:
         folder = full
-        for entry in sorted(os.listdir(folder)):
+        for entry in sorted(vobj.listdir(folder)):
           file = entry
-          full = os.path.join (folder, entry)
-          if os.path.isfile(full):        
+          full = os.path.join(folder, entry)
+          if vobj.isfile(full):        
             file_id = GetTrackId(entry)
             if find_track_id == False or file_id == find_track_id:
+              full = vobj.GetFilePath(full)
               result = full
               break
     if result != False:
@@ -715,8 +737,9 @@ def BuildDataVersion(ver_folder, id):
   global TargetFolder
   global VersionFileFolder
   global VersionFileTrack
-  print(VersionFileFolder, VersionFileTrack)
-  sfn = GetSampleFile(VersionFileFolder, VersionFileTrack)
+  
+  vobj = LoadVirtualFolder(SourceFolder)
+  sfn = GetSampleFile(vobj, VersionFileFolder, VersionFileTrack)
   if sfn == False:
     sfn = GetSampleFile(1, 1)
   for i in range(0, 31):
