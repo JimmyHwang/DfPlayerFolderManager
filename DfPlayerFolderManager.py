@@ -472,11 +472,11 @@ def EmptyFolder(folder):
   if os.path.isdir(folder):
     EmptyFolderNest(folder, "");
 
-def IsSystemFolder(folder):
+def IsSystemFolder(vobj, folder):
   st = False
   index_file = os.path.join(folder, INDEX_FILE)
-  if os.path.exists(index_file):
-    index_cfg = ReadJsonFile(index_file)
+  if vobj.exists(index_file):
+    index_cfg = vobj.ReadJsonFile(index_file)
     if "Folder" in index_cfg:
       if index_cfg["Folder"] == "System":
         st = True
@@ -512,17 +512,21 @@ def ConvertNest(args, rpath):
   else:
     base_dir = os.path.join(base, rpath)
     
-  if level == 1 and IsSystemFolder(base_dir):
+  if level == 1 and IsSystemFolder(vobj, base_dir):
     print("----------------------------------------")
     print(" System Folder [%s]" % (base_dir))
     print("----------------------------------------")
     dst_folder = os.path.join(target_folder, rpath)
-    shutil.copytree(base_dir, dst_folder, dirs_exist_ok=True)
+    fobj = vobj.GetFileObj(base_dir)
+    if fobj == False:
+      print("ERROR: Folder [%s] not found" % (base_dir))
+      exit(1)
+    else:
+      shutil.copytree(fobj.Full, dst_folder, dirs_exist_ok=True)
   else:  
     print("----------------------------------------")
     print(" Folder [%s]" % (base_dir))
     print("----------------------------------------")
-    
     output_folder = os.path.join(target_folder, str(args["FolderId"]));
     origin_folder = False
     if mode == MODE_SINGLE:
