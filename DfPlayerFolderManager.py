@@ -196,19 +196,20 @@ class FILE_CLASS(ENTRY_CLASS):
       print("#"+full)
     
 class FOLDER_CLASS(ENTRY_CLASS):  
-  def __init__(self, full):
+  def __init__(self, full, level = 0):
     global DebugFlags
     super().__init__(full, 1)
     if DebugFlags and 1:
       print("@"+full)
     self.List = []
+    self.Level = level
   
   def Build(self):
     flist = os.listdir(self.Full)
     for f in flist:
       full = os.path.join(self.Full, f)
       if (os.path.isdir(full)):
-        fobj = FOLDER_CLASS(full)
+        fobj = FOLDER_CLASS(full, self.Level+1)
         fobj.Build()
         self.List.append(fobj)
       else:
@@ -288,7 +289,7 @@ class FOLDER_CLASS(ENTRY_CLASS):
       if path_node != False:
         fobj = self.GetMatchItem(path_node)
         if fobj == False:
-          fobj = FOLDER_CLASS(path_node)
+          fobj = FOLDER_CLASS(path_node, self.Level+1)
           self.List.append(fobj)
         fobj.mkdir(remind_path)          
     
@@ -321,7 +322,7 @@ class FOLDER_CLASS(ENTRY_CLASS):
         del self.List[index]
         st = True
     else:
-      st = item.isfile(remind_path)
+      st = item.RemoveFile(remind_path)
     return st
     
   def AddFile(self, base, rpath):
@@ -344,7 +345,7 @@ class FOLDER_CLASS(ENTRY_CLASS):
         full = os.path.join(self.Full, path_node)
         fobj = self.GetMatchItem(path_node)
         if fobj == False:
-          fobj = FOLDER_CLASS(full)
+          fobj = FOLDER_CLASS(full, self.Level+1)
         full = os.path.join(base, path_node)
         st = fobj.AddFile(full, remind_path)
     return st 
@@ -352,24 +353,28 @@ class FOLDER_CLASS(ENTRY_CLASS):
   #
   # Merge from sobj
   #
-  def Merge(self, sobj):
+  def Merge(self, sroot):
     st = False
-    for nobj in sobj.List:
-      # print("nobj.Name [%s]" % (nobj.Name))
-      fobj = self.GetMatchItem(nobj.Name)
-      if fobj == False:                 # Not exists
-        if nobj.Type == 1:
-          fobj = FOLDER_CLASS(nobj.Name)
-          fobj.Merge(nobj)
-        else:
-          fobj = FILE_CLASS(nobj.Full)
-          print("Merge File [%s]" % (nobj.Full))          
+    level = self.Level;
+    spcs = GetSpaceStringN(level)
+    for sobj in sroot.List:
+      # print("sobj.Name [%s]" % (sobj.Name))
+      # print("sobj.Type = %d" % (sobj.Type))
+      fobj = self.GetMatchItem(sobj.Name)
+      if fobj == False:                 # Not exists        
+        if sobj.Type == 1:              # New Folder
+          fobj = FOLDER_CLASS(sobj.Name, level+1)
+          fobj.Merge(sobj)
+          print("%s[%d]Merge: Merge Folder [%s]" % (spcs, level, sobj.Full)) 
+        else:                           # New File
+          fobj = FILE_CLASS(sobj.Full)
+          print("%s[%d]Merge: Add File [%s]" % (spcs, level, sobj.Full)) 
         self.List.append(fobj)
       else:                             # Exists
-        if fobj.Type == 1:
-          pass
-        else:
-          fobj.Full = nobj.Full
+        if fobj.Type == 1:              # Folder Exists
+          fobj.Merge(sobj)
+        else:                           # File Exists
+          fobj.Full = sobj.Full
   
   def ReadTextFile(self, rpath):
     data = False
