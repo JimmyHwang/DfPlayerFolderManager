@@ -605,7 +605,7 @@ def ConvertNest(args, rpath):
     if IndexFlag == True and origin_folder != False:
       source_index_fn = os.path.join(base_dir, INDEX_FILE)      
       target_index_fn = os.path.join(output_folder, INDEX_FILE)
-      index_cfg = ReadJsonFile(source_index_fn)
+      index_cfg = vobj.ReadJsonFile(source_index_fn)
       index_cfg["Folder"] = origin_folder
       WriteJsonFile(target_index_fn, index_cfg)
     

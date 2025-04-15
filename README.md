@@ -9,6 +9,7 @@ DfPlayerFolderManager is a tool for convert song folder structure for MP3-TF-16P
 - Build folder index file after build folder completed
 - Support apply specify to index of folder
 - Support keep origin folder structure when the folder is marked "System" in index.json
+- Support build data version of SD
 
 ## Installation
 
@@ -26,6 +27,7 @@ python3 DfPlayerFolderManager.py -s Source -t Target -c -m 0
   * -t,--target xxx     Specify target folder
   * -m,--mode           Specify output folder mode
   * --tag xxxx          Specify tag of folder in index file
+  * --ver xxxx          Specify Data Version
 
 ## Examples
 ```
